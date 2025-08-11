@@ -25,6 +25,8 @@ public class TwoPhaseReplica extends Replica {
     private final Set<String> executedLocally = new HashSet<>();
     // Separate waiting list for client responses to avoid interaction with internal waits
     private final RequestWaitingList<String, Object> clientWaitingList;
+    // Track coordinators per client correlation id
+    private final Map<String, RequestCoordinator> requestCoordinators = new HashMap<>();
 
     public TwoPhaseReplica(ProcessId id, List<ProcessId> peers, MessageBus bus, MessageCodec codec, Storage storage, Clock clock, int timeout) {
         super(id, peers, bus, codec, storage, clock, timeout);
@@ -45,10 +47,9 @@ public class TwoPhaseReplica extends Replica {
         ClientIncRequest req = deserializePayload(msg.payload(), ClientIncRequest.class);
         String corr = msg.correlationId();
         String requestId = req.requestId();
-       
-        clientWaitingList.add(corr, createClientResponseCallback(msg.source(), corr, requestId));
-
-        broadcastAcceptRequestToAllReplicas(msg, requestId, corr);
+        RequestCoordinator coordinator = new RequestCoordinator(msg.source(), corr, requestId);
+        requestCoordinators.put(corr, coordinator);
+        coordinator.start();
     }
 
     private void sendClientResponse(ProcessId client, String clientCorrelationId, String requestId, boolean acceptedByMajority) {
@@ -78,45 +79,10 @@ public class TwoPhaseReplica extends Replica {
         }
     }
 
-    private RequestCallback<Object> createClientResponseCallback(ProcessId client,
-                                                                 String clientCorrelationId,
-                                                                 String requestId) {
-        return new RequestCallback<Object>() {
-            @Override
-            public void onResponse(Object response, ProcessId fromNode) {
-                sendClientResponse(client, clientCorrelationId, requestId, true);
-            }
-            @Override
-            public void onError(Exception error) {
-                sendClientResponse(client, clientCorrelationId, requestId, false);
-            }
-        };
-    }
-
     private void handleAcceptRequest(Message msg) {
         AcceptRequest req = deserializePayload(msg.payload(), AcceptRequest.class);
         acceptedLocally.put(req.requestId(), true);
         send(createResponseMessage(msg, new AcceptResponse(req.requestId(), true), ACCEPT_RESPONSE));
-    }
-
-    private void broadcastAcceptRequestToAllReplicas(Message originalClientMessage,
-                                                     String requestId,
-                                                     String clientCorrelationId) {
-        var acceptQuorum = new AsyncQuorumCallback<AcceptResponse>(
-                getAllNodes().size(), r -> r != null && r.accepted());
-
-        acceptQuorum
-                .onSuccess(map -> {
-                    // On quorum, start execute phase; local EXECUTE will trigger client callback
-                    broadcastExecuteToPeers(requestId, clientCorrelationId);
-                })
-                .onFailure(err -> {
-                    // Notify client failure
-                    sendClientResponse(originalClientMessage.source(), clientCorrelationId, requestId, false);
-                });
-
-        broadcastToAllReplicas(acceptQuorum, (peer, internalCorr) ->
-                createMessage(peer, internalCorr, new AcceptRequest(requestId), ACCEPT_REQUEST));
     }
 
     private void handleAcceptResponse(Message msg) {
@@ -136,6 +102,89 @@ public class TwoPhaseReplica extends Replica {
             send(createResponseMessage(msg, new ExecuteResponse(req.requestId(), true, counter), EXECUTE_RESPONSE));
         } else {
             send(createResponseMessage(msg, new ExecuteResponse(req.requestId(), false, counter), EXECUTE_RESPONSE));
+        }
+    }
+
+    // Per-request coordinator with explicit phases
+    private final class RequestCoordinator {
+        private enum Phase { ACCEPTING, EXECUTING, COMPLETED }
+        private enum Signal { ACCEPT_OK, ACCEPT_FAIL, EXECUTE_LOCAL_OK, EXECUTE_LOCAL_FAIL }
+
+        private final ProcessId client;
+        private final String clientCorrelationId;
+        private final String requestId;
+        private Phase phase = Phase.ACCEPTING;
+
+        RequestCoordinator(ProcessId client, String clientCorrelationId, String requestId) {
+            this.client = client;
+            this.clientCorrelationId = clientCorrelationId;
+            this.requestId = requestId;
+        }
+
+        void start() {
+            // Complete when local EXECUTE happens
+            clientWaitingList.add(clientCorrelationId, unifiedCallback());
+            sendAcceptToAll();
+        }
+
+        private void sendAcceptToAll() {
+            var acceptQuorum = new AsyncQuorumCallback<AcceptResponse>(
+                    getAllNodes().size(), r -> r != null && r.accepted());
+
+            acceptQuorum
+                    .onSuccess(map -> handle(Signal.ACCEPT_OK))
+                    .onFailure(err -> handle(Signal.ACCEPT_FAIL));
+
+            broadcastToAllReplicas(acceptQuorum, (peer, internalCorr) ->
+                    createMessage(peer, internalCorr, new AcceptRequest(requestId), ACCEPT_REQUEST));
+        }
+
+        private RequestCallback<Object> unifiedCallback() {
+            return new RequestCallback<Object>() {
+                @Override
+                public void onResponse(Object response, ProcessId fromNode) {
+                    handle(Signal.EXECUTE_LOCAL_OK);
+                }
+
+                @Override
+                public void onError(Exception error) {
+                    handle(Signal.EXECUTE_LOCAL_FAIL);
+                }
+            };
+        }
+
+        private void tryCleanup() {
+            requestCoordinators.remove(clientCorrelationId);
+        }
+
+        private void handle(Signal signal) {
+            switch (phase) {
+                case ACCEPTING -> {
+                    if (signal == Signal.ACCEPT_OK) {
+                        phase = Phase.EXECUTING;
+                        // Broadcast EXECUTE; local delivery will drive the callback into EXECUTE_LOCAL_OK
+                        broadcastExecuteToPeers(requestId, clientCorrelationId);
+                    } else if (signal == Signal.ACCEPT_FAIL) {
+                        phase = Phase.COMPLETED;
+                        tryCleanup();
+                        sendClientResponse(client, clientCorrelationId, requestId, false);
+                    }
+                }
+                case EXECUTING -> {
+                    if (signal == Signal.EXECUTE_LOCAL_OK) {
+                        phase = Phase.COMPLETED;
+                        tryCleanup();
+                        sendClientResponse(client, clientCorrelationId, requestId, true);
+                    } else if (signal == Signal.EXECUTE_LOCAL_FAIL) {
+                        phase = Phase.COMPLETED;
+                        tryCleanup();
+                        sendClientResponse(client, clientCorrelationId, requestId, false);
+                    }
+                }
+                case COMPLETED -> {
+                    // no-op
+                }
+            }
         }
     }
 }
