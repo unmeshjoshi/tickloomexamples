@@ -126,7 +126,7 @@ public class TwoPhaseReplicaSimple extends Replica {
         if (acceptedLocally.getOrDefault(req.requestId(), false) && !executedLocally.contains(req.requestId())) {
             counter = counter + 1;
             VersionedValue v = new VersionedValue(new byte[]{(byte) counter}, clock.now());
-            storage.set(new byte[]{1}, v);
+            storage.set("counter".getBytes(), v);
             executedLocally.add(req.requestId());
             clientWaitingList.handleResponse(msg.correlationId(), new ExecuteResponse(req.requestId(), true, counter), id);
             send(createResponseMessage(msg, new ExecuteResponse(req.requestId(), true, counter), EXECUTE_RESPONSE));

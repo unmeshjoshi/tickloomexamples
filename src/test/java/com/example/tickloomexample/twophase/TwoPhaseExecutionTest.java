@@ -70,6 +70,18 @@ public class TwoPhaseExecutionTest {
         var f = client.inc(s1, "req-1");
         assertEventually(cluster, f::isCompleted);
         assertEquals(1, f.getResult().committedValue());
+
+        // All nodes should have executed: counter == 1 on all
+        byte[] key = "counter".getBytes();
+        var v1 = cluster.getStorageValue(s1, key);
+        var v2 = cluster.getStorageValue(ProcessId.of("process-2"), key);
+        var v3 = cluster.getStorageValue(ProcessId.of("process-3"), key);
+        org.junit.jupiter.api.Assertions.assertNotNull(v1);
+        org.junit.jupiter.api.Assertions.assertNotNull(v2);
+        org.junit.jupiter.api.Assertions.assertNotNull(v3);
+        org.junit.jupiter.api.Assertions.assertEquals(1, v1.value()[0]);
+        org.junit.jupiter.api.Assertions.assertEquals(1, v2.value()[0]);
+        org.junit.jupiter.api.Assertions.assertEquals(1, v3.value()[0]);
     }
 
     @Test
@@ -88,6 +100,17 @@ public class TwoPhaseExecutionTest {
         assertEventually(cluster, f::isCompleted);
         // Only s1 should have executed; value should still be 1 at s1
         assertEquals(1, f.getResult().committedValue());
+
+        // Validate that replicas which missed EXECUTE did not change their state
+        byte[] key = "counter".getBytes();
+        var v1 = cluster.getStorageValue(s1, key);
+        var v2 = cluster.getStorageValue(s2, key);
+        var v3 = cluster.getStorageValue(s3, key);
+        org.junit.jupiter.api.Assertions.assertNotNull(v1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, v1.value()[0]);
+        // Both should be null because they never executed
+        org.junit.jupiter.api.Assertions.assertNull(v2);
+        org.junit.jupiter.api.Assertions.assertNull(v3);
     }
 
     @Test
@@ -106,6 +129,17 @@ public class TwoPhaseExecutionTest {
         assertEventually(cluster, f::isCompleted);
         // Fresh cluster per test: after one increment, value should be 1
         assertEquals(1, f.getResult().committedValue());
+
+        // Validate that the node which missed ACCEPT did not execute, others did
+        byte[] key = "counter".getBytes();
+        var v1 = cluster.getStorageValue(s1, key);
+        var v2 = cluster.getStorageValue(s2, key);
+        var v3 = cluster.getStorageValue(s3, key);
+        org.junit.jupiter.api.Assertions.assertNotNull(v1);
+        org.junit.jupiter.api.Assertions.assertNull(v2);
+        org.junit.jupiter.api.Assertions.assertNotNull(v3);
+        org.junit.jupiter.api.Assertions.assertEquals(1, v1.value()[0]);
+        org.junit.jupiter.api.Assertions.assertEquals(1, v3.value()[0]);
     }
 }
 

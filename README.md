@@ -1,12 +1,12 @@
 ## TickLoom Examples (Java/Gradle)
 
 ### Overview
-This project demonstrates building small distributed examples on top of TickLoom:
+This project demonstrates building small distributed examples using the tickloom framework:
 - Using the SimulatedNetwork and Cluster testkit
-- Modeling a two-phase (accept → execute) flow
-- Injecting network faults by message type for scenario tests
+- Modeling a request flow which involves multiple-phases.
+- Injecting network faults by message type for scenario tests.
 
-Artifacts used
+Artifacts used:
 - Library: `io.github.unmeshjoshi:tickloom:0.1.0-alpha.4`
 - Testkit: `io.github.unmeshjoshi:tickloom-testkit:0.1.0-alpha.4`
 
@@ -29,6 +29,7 @@ Reference: [TickLoom on Sonatype Central](https://central.sonatype.com/artifact/
 
 ### Fault injection
 TickLoom alpha.4 supports dropping messages between specific processes by message type, e.g.:
+TickLoom alpha.4 supports dropping messages between specific processes by message type, e.g.:
 - `SimulatedNetwork.dropMessagesOfType(source, destination, messageType)`
 
 The tests use this to model:
@@ -41,7 +42,7 @@ The tests use this to model:
 - The coordinator-based version wraps the flow in a small per-request state machine with a single unified callback for clarity and extensibility.
 
 ### Requirements
-- JDK 17+
+- JDK 21+
 
 ### Run tests
 ```bash
@@ -52,10 +53,4 @@ If you prefer a system Gradle:
 ```bash
 gradle test
 ```
-
-### Project structure (key paths)
-- Build: `build.gradle` (Gradle Java + JUnit 5)
-- Echo: `com.example.tickloomexample.echo.*`
-- Two-phase (simple + coordinator): `com.example.tickloomexample.twophase.*`
-
 

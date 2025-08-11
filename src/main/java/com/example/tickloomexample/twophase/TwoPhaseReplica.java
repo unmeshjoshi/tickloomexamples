@@ -95,7 +95,7 @@ public class TwoPhaseReplica extends Replica {
         if (acceptedLocally.getOrDefault(req.requestId(), false) && !executedLocally.contains(req.requestId())) {
             counter = counter + 1;
             VersionedValue v = new VersionedValue(new byte[]{(byte) counter}, clock.now());
-            storage.set(new byte[]{1}, v);
+            storage.set("counter".getBytes(), v);
             executedLocally.add(req.requestId());
             // Complete the client callback registered under the client correlationId
             clientWaitingList.handleResponse(msg.correlationId(), new ExecuteResponse(req.requestId(), true, counter), id);
