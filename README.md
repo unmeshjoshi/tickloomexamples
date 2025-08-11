@@ -6,9 +6,9 @@ This project demonstrates building small distributed examples on top of TickLoom
 - Modeling a two-phase (accept → execute) flow
 - Injecting network faults by message type for scenario tests
 
-Artifacts used:
-- Library: `io.github.unmeshjoshi:tickloom:0.1.0-alpha.3`
-- Testkit: `io.github.unmeshjoshi:tickloom-testkit:0.1.0-alpha.3`
+Artifacts used
+- Library: `io.github.unmeshjoshi:tickloom:0.1.0-alpha.4`
+- Testkit: `io.github.unmeshjoshi:tickloom-testkit:0.1.0-alpha.4`
 
 Reference: [TickLoom on Sonatype Central](https://central.sonatype.com/artifact/io.github.unmeshjoshi/tickloom)
 
@@ -28,7 +28,7 @@ Reference: [TickLoom on Sonatype Central](https://central.sonatype.com/artifact/
     - `src/test/java/com/example/tickloomexample/twophase/TwoPhaseExecutionTest.java`
 
 ### Fault injection
-TickLoom alpha.3 supports dropping messages between specific processes by message type, e.g.:
+TickLoom alpha.4 supports dropping messages between specific processes by message type, e.g.:
 - `SimulatedNetwork.dropMessagesOfType(source, destination, messageType)`
 
 The tests use this to model:
