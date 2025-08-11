@@ -1,0 +1,18 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'io.github.unmeshjoshi:tickloom:0.1.0-alpha.4'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation("io.github.unmeshjoshi:tickloom-testkit:0.1.0-alpha.4")
+}
+
+test {
+    useJUnitPlatform()
+}
