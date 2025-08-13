@@ -1,56 +1,38 @@
-## TickLoom Examples (Java/Gradle)
+## Distributed Systems Workshop (Java/Gradle)
 
 ### Overview
-This project demonstrates building small distributed examples using the tickloom framework:
-- Using the SimulatedNetwork and Cluster testkit
-- Modeling a request flow which involves multiple-phases.
-- Injecting network faults by message type for scenario tests.
+This repository contains small distributed-systems examples and exercises built with the TickLoom framework. It currently includes:
+- A quorum-based key-value store: `src/main/java/com/distsys/quorumkv` with tests in `src/test/java/com/distsys/quorumkv/QuorumKVTest.java`
+- A minimal echo server/client example: `src/main/java/com/example/tickloomexample/echo` with tests in `src/test/java/com/example/tickloomexample/echo/EchoClusterTest.java`
 
-Artifacts used:
+TickLoom artifacts used:
 - Library: `io.github.unmeshjoshi:tickloom:0.1.0-alpha.4`
 - Testkit: `io.github.unmeshjoshi:tickloom-testkit:0.1.0-alpha.4`
 
 Reference: [TickLoom on Sonatype Central](https://central.sonatype.com/artifact/io.github.unmeshjoshi/tickloom)
 
-### What’s included
-- Echo example (minimal server/client):
-  - `src/main/java/com/example/tickloomexample/echo/*`
-  - `src/test/java/com/example/tickloomexample/echo/EchoClusterTest.java`
-
-- Two-phase execution examples (increment counter):
-  - Coordinator-based (explicit state machine):
-    - `src/main/java/com/example/tickloomexample/twophase/TwoPhaseReplica.java`
-  - Simple direct-callback style:
-    - `src/main/java/com/example/tickloomexample/twophase/TwoPhaseReplicaSimple.java`
-  - Shared messages:
-    - `src/main/java/com/example/tickloomexample/twophase/TwoPhaseMessages.java`
-  - Scenario tests (success + fault injection):
-    - `src/test/java/com/example/tickloomexample/twophase/TwoPhaseExecutionTest.java`
-
-### Fault injection
-TickLoom alpha.4 supports dropping messages between specific processes by message type, e.g.:
-TickLoom alpha.4 supports dropping messages between specific processes by message type, e.g.:
-- `SimulatedNetwork.dropMessagesOfType(source, destination, messageType)`
-
-The tests use this to model:
-- two_phase_lost_commits: drop `EXECUTE_REQUEST`
-- two_phase_missed_accepts: drop `ACCEPT_REQUEST`
-
-### Design notes
-- We reuse the client correlationId for EXECUTE fan-out to preserve end-to-end traceability (client → accept → execute → client response).
-- We keep client waits isolated using a separate `RequestWaitingList` to avoid interaction with internal waits.
-- The coordinator-based version wraps the flow in a small per-request state machine with a single unified callback for clarity and extensibility.
-
 ### Requirements
 - JDK 21+
 
-### Run tests
+### Build and test
 ```bash
-./gradlew test
+./gradlew clean test
+```
+
+Run a specific test class:
+```bash
+./gradlew test --tests com.distsys.quorumkv.QuorumKVTest
 ```
 
 If you prefer a system Gradle:
 ```bash
-gradle test
+gradle clean test
 ```
 
+### Project layout
+- QuorumKV: `src/main/java/com/distsys/quorumkv/*`
+- Echo example: `src/main/java/com/example/tickloomexample/echo/*`
+- Perf utilities and tests: `src/test/java/com/example/perf/*`
+
+### License
+MIT (or your preferred license)
